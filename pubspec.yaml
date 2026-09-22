@@ -45,6 +45,8 @@ dependencies:
   confetti: ^0.7.0
   share_plus: ^10.0.0
   flutter_onnxruntime: ^1.8.1
+  shared_preferences: ^2.2.2
+  url_launcher: ^6.2.5
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'camera_screen.dart';
 import 'document_crop_service.dart';
 import 'review_screen.dart';
+import 'settings_screen.dart';
 import 'temporary_contact_service.dart';
 import 'temporary_contacts_screen.dart';
 import 'contacts_writer_service.dart';
@@ -97,68 +98,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _showSettingsModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF141720),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'Settings & Privacy',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Contact Scanner processes your handwritten lists on-device. '
-                'Scanned images are never uploaded to third-party ad networks or sold.',
-                style: TextStyle(color: Color(0xFF8F97A6), fontSize: 13, height: 1.4),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.shield_outlined, color: Color(0xFF6C93D6)),
-                title: const Text('Offline Mode', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('On-device document scanning & OCR', style: TextStyle(color: Color(0xFF8F97A6), fontSize: 12)),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.timer_outlined, color: Color(0xFF6C93D6)),
-                title: const Text('Temporary Contacts Engine', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Auto-deletes expired contacts natively', style: TextStyle(color: Color(0xFF8F97A6), fontSize: 12)),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.info_outline, color: Color(0xFF6C93D6)),
-                title: const Text('Version', style: TextStyle(color: Colors.white, fontSize: 14)),
-                subtitle: const Text('Contact Scanner v1.0.0', style: TextStyle(color: Color(0xFF8F97A6), fontSize: 12)),
-              ),
-            ],
-          ),
-        ),
-      ),
+  void _openSettingsScreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
 
@@ -178,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ContactsWriterService.openContactsApp();
         break;
       case 3:
-        _showSettingsModal();
+        _openSettingsScreen();
         break;
     }
   }

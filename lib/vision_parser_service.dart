@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+
+import 'api_key_service.dart';
 
 /// Sends an image of handwritten contacts to Gemini Vision API and receives
 /// structured contact data (name + phone pairs) as a JSON array.
@@ -16,7 +17,7 @@ import 'package:http/http.dart' as http;
 /// Free tier: 1500 requests/day, no credit card required.
 class VisionParserService {
   static const String _baseUrl =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
 
   /// Reads the image at [imagePath], sends it to Gemini Vision, and returns
   /// a list of parsed contact maps.
@@ -28,11 +29,13 @@ class VisionParserService {
   static Future<List<Map<String, String>>> extractAndParseContacts(
     String imagePath,
   ) async {
-    final apiKey = dotenv.env['GEMINI_API_KEY'];
-    if (apiKey == null || apiKey.isEmpty || apiKey == 'your_gemini_api_key_here') {
+    // Use ApiKeyService: user-saved key takes priority, .env key is fallback.
+    final apiKey = await ApiKeyService.getApiKey();
+    if (apiKey == null || apiKey.isEmpty) {
       throw Exception(
-        'GEMINI_API_KEY not found in .env file. '
-        'Please add your Gemini API key from https://aistudio.google.com/app/apikey',
+        'No Gemini API key configured. '
+        'Please add your key in Settings, or set GEMINI_API_KEY in the .env file. '
+        'Get a free key at https://aistudio.google.com/app/apikey',
       );
     }
 
