@@ -109,7 +109,7 @@ graph TD
 ### Workflow C: Text Recognition & Contact Parsing
 
 #### 1. AI Multimodal Vision Parsing (`lib/vision_parser_service.dart`)
-- **Description**: Uses multimodal vision intelligence (Google Gemini 2.5 Flash) to parse handwritten text, separate names and phone numbers, and output structured JSON.
+- **Description**: Uses multimodal vision intelligence (Google Gemini `gemini-3.5-flash-lite`) to parse handwritten text, separate names and phone numbers, and output structured JSON.
 - **How It Works Under the Hood**:
   - Reads the scanned document or cropped row slices, base64 encodes the bytes, and constructs an HTTP POST request to the Gemini Vision REST API endpoint.
   - Sends a low-temperature configuration (`temperature: 0.1`) with a specialized system prompt enforcing a strict JSON schema: `[{"name": "...", "phone": "..."}]`.
@@ -269,31 +269,83 @@ graph TD
 
 ---
 
+### Workflow G: Brand Identity & Visual Asset Architecture
+
+#### 1. Origami Contact & Scanner Viewfinder Logo (`assets/logo.png`)
+- **Description**: The signature logo combines physical paper artistry with digital computer vision framing.
+- **Visual Design & Symbolism**:
+  - **Origami Paper Bust**: A low-poly, origami-folded white paper human figure representing physical contact sheets, physical paper registers, and human identity.
+  - **Cyan Scanner Corner Brackets**: Four glowing turquoise/cyan (`#00E5FF`) viewfinder brackets enclosing the subject, symbolizing the app's real-time optical capture, document segmentation, and bounding box targeting.
+  - **Matte Dark Canvas**: Deep dark background (`#0E1118`) creating an ultra-clean contrast matching the app's dark navy/slate theme.
+- **How It Works Under the Hood & Asset Pipeline**:
+  - **Master High-Resolution Asset**: Stored at `assets/logo.png` (1024x1024 PNG), declared in `pubspec.yaml`.
+  - **In-App Visual Integration**:
+    - `HomeScreen`: Featured as a 36x36 rounded badge alongside the main dashboard title.
+    - `CameraScreen`: Displayed in the top-left translucent frosted glass viewfinder badge (22x22).
+    - `ContactReviewScreen`: Positioned in the AppBar (34x34) beside contact count statistics.
+  - **Native Android Launcher Icons**:
+    - Downsampled from the master 1024x1024 image using Lanczos interpolation across all Android density buckets:
+      - `mipmap-mdpi`: 48x48
+      - `mipmap-hdpi`: 72x72
+      - `mipmap-xhdpi`: 96x96
+      - `mipmap-xxhdpi`: 144x144
+      - `mipmap-xxxhdpi`: 192x192
+    - Linked in `AndroidManifest.xml` via `android:icon="@mipmap/ic_launcher"`, delivering crisp launcher branding on physical devices.
+
+---
+
+### Workflow H: User API Key Management & Settings
+
+#### 1. Dedicated Settings Screen (`lib/settings_screen.dart`)
+- **Description**: Allows users to configure their own Google Gemini API key directly within the app interface.
+- **How It Works Under the Hood**:
+  - Built with the dark navy/slate design system (`#0E1118` scaffold, `#161B26` card backgrounds, cyan `#00E5FF` highlights).
+  - Includes a step-by-step guidance card with a clickable button launching `https://aistudio.google.com/app/apikey` via `url_launcher`.
+  - Features an obscured text field (`obscureText: true`) with an eye visibility toggle button, clear button, and paste shortcut.
+  - Displays currently saved key status (masked preview: `AIzaSy...XXXX`) and a button to remove or replace stored keys.
+
+#### 2. Key Priority & Local Storage (`lib/api_key_service.dart`)
+- **Description**: Centralized service managing API key resolution and persistent storage.
+- **How It Works Under the Hood**:
+  - Uses `shared_preferences` to persist user-supplied API keys under key `gemini_user_api_key`.
+  - Resolution hierarchy:
+    1. User key in `SharedPreferences` (highest priority).
+    2. Fallback key defined in `.env` (`flutter_dotenv`).
+    3. Throws a helpful user-facing exception directing to Settings if no key is present.
+
+---
+
 ## 3. Directory & File Breakdown
 
 | File | Purpose | Key Technical Details |
 |---|---|---|
 | [`lib/main.dart`](file:///j:/napp/lib/main.dart) | App entry point & theme | Sets up dark navy/slate theme (`#0E1118`), initializes cameras, and launches `HomeScreen`. |
-| [`lib/home_screen.dart`](file:///j:/napp/lib/home_screen.dart) | Redesigned Main Menu | Houses the 3D rotating horizontal carousel (`PageView`) & vertical 3D wheel (`ListWheelScrollView`). |
-| [`lib/camera_screen.dart`](file:///j:/napp/lib/camera_screen.dart) | Live Camera Viewfinder | Full-screen preview with document guides, flash torch, and gallery import. |
+| [`lib/home_screen.dart`](file:///j:/napp/lib/home_screen.dart) | Redesigned Main Menu | Houses the 3D rotating horizontal carousel (`PageView`) & vertical 3D wheel (`ListWheelScrollView`) with logo badge. |
+| [`lib/camera_screen.dart`](file:///j:/napp/lib/camera_screen.dart) | Live Camera Viewfinder | Full-screen preview with document guides, flash torch, gallery import, and top logo badge. |
 | [`lib/document_crop_service.dart`](file:///j:/napp/lib/document_crop_service.dart) | Document Scanner Service | Integrates ML Kit Document Scanner for automatic edge detection and flattening. |
 | [`lib/preprocessing_service.dart`](file:///j:/napp/lib/preprocessing_service.dart) | Image Enhancement | BT.601 luminance conversion, contrast stretching, and adaptive binarization. |
 | [`lib/row_segmentation_service.dart`](file:///j:/napp/lib/row_segmentation_service.dart) | Line Item Segmentation | Horizontal projection profiling, ascender/descender merging, and padding bounds. |
 | [`lib/review_screen.dart`](file:///j:/napp/lib/review_screen.dart) | Bounding Box Review | Interactive screen with neon bounding boxes overlaid on detected rows. |
 | [`lib/row_overlay_painter.dart`](file:///j:/napp/lib/row_overlay_painter.dart) | Bounding Box Canvas Painter | `CustomPainter` rendering normalized bounding boxes over document images. |
-| [`lib/vision_parser_service.dart`](file:///j:/napp/lib/vision_parser_service.dart) | Gemini Vision OCR & Parser | Multimodal AI OCR, strikethrough detection, correction pairing, and regex cleaning. |
+| [`lib/vision_parser_service.dart`](file:///j:/napp/lib/vision_parser_service.dart) | Gemini Vision OCR & Parser | Multimodal AI OCR (`gemini-3.5-flash-lite`), strikethrough detection, correction pairing, and regex cleaning. |
+| [`lib/settings_screen.dart`](file:///j:/napp/lib/settings_screen.dart) | Settings & API Key Screen | Dark navy UI, step-by-step AI Studio instructions, secure input field with visibility toggle. |
+| [`lib/api_key_service.dart`](file:///j:/napp/lib/api_key_service.dart) | API Key Storage & Fallback | `SharedPreferences` persistence for user API keys with fallback to `.env`. |
 | [`lib/offline_crnn_service.dart`](file:///j:/napp/lib/offline_crnn_service.dart) | Offline Handwriting Model | On-device ONNX Runtime CRNN model for offline handwriting recognition. |
-| [`lib/contact_review_screen.dart`](file:///j:/napp/lib/contact_review_screen.dart) | Contact Review & Verification | Editable contact cards, 10-digit warnings, batch suffix tool, and temporary scheduling. |
+| [`lib/contact_review_screen.dart`](file:///j:/napp/lib/contact_review_screen.dart) | Contact Review & Verification | Editable contact cards, 10-digit warnings, batch suffix tool, temporary scheduling, and AppBar logo. |
 | [`lib/temporary_contacts_screen.dart`](file:///j:/napp/lib/temporary_contacts_screen.dart) | Temporary Contacts Details | Real-time second-by-second countdown screen with manual deletion controls. |
 | [`lib/temporary_contact_service.dart`](file:///j:/napp/lib/temporary_contact_service.dart) | Background Expiry Engine | JSON disk registry persistence and 1-second periodic background timer. |
 | [`lib/contacts_writer_service.dart`](file:///j:/napp/lib/contacts_writer_service.dart) | MethodChannel Interface | Flutter side of Android MethodChannel for contact query, insert, and delete. |
 | [`android/app/src/main/kotlin/.../MainActivity.kt`](file:///j:/napp/android/app/src/main/kotlin/com/example/contact_scanner/MainActivity.kt) | Native Android Kotlin Plugin | `AccountManager` Google account discovery, ContentProvider batch ops, sync-adapter delete. |
 | [`lib/save_success_screen.dart`](file:///j:/napp/lib/save_success_screen.dart) | Completion Screen | Summary of saved contacts and intent launcher to native Android Contacts. |
+| [`assets/logo.png`](file:///j:/napp/assets/logo.png) | Master App Logo & Branding | 1024x1024 high-res origami contact silhouette with neon cyan scanner brackets on dark slate. |
+| `android/app/src/main/res/mipmap-*/ic_launcher.png` | Android App Launcher Icons | Multi-density Android home screen icons downsampled with Lanczos interpolation. |
 | [`test/temporary_contact_test.dart`](file:///j:/napp/test/temporary_contact_test.dart) | Automated Unit Tests | Unit tests validating expiration calculations, batch scheduling, and JSON parsing. |
 
 ---
 
 ## 4. Key Capabilities & Technical Highlights
+- **Origami & Scanner Brand Identity**: Distinctive paper-craft silhouette with neon cyan viewfinder corner brackets symbolizing the paper-to-digital contact conversion pipeline.
+- **User-Configurable Gemini API Key**: In-app Settings screen allowing users to input their personal Google AI Studio keys, persisted securely via `SharedPreferences`.
 - **Strikethrough Prevention**: Automatically ignores crossed-out names/numbers on physical paper and extracts nearby rewritten corrections without creating duplicate entries.
 - **Accurate Row/Box Grouping**: Uses horizontal projection profiling and gap merging to bundle multi-line names and handwriting ascenders/descenders into tight bounding boxes.
 - **10-Digit Receding & Exceeding Warnings**: Proactively alerts users if phone numbers are incomplete ($<10$ digits) or overly long ($>10$ digits), preventing corrupted address book entries.
