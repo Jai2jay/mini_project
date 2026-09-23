@@ -220,10 +220,18 @@ graph TD
 
 ### Workflow F: Native Phonebook Write & Automated Deletion
 
-#### 1. Native Contacts Insertion (`lib/contacts_writer_service.dart` -> `MainActivity.kt`)
-- **Description**: Writes validated contacts into the Android device's native contacts provider.
+#### 1. Native Contacts Insertion & Phone-Only Duplicate Prevention (`lib/contacts_writer_service.dart` -> `MainActivity.kt`)
+- **Description**: Writes validated contacts into the Android device's native contacts provider while selectively skipping duplicate phone numbers (allowing identical contact names).
 - **How It Works Under the Hood**:
-  - Communicates over Flutter MethodChannel `com.example.contact_scanner/contacts` invoking the native method `writeContacts`.
+  - **Phone-Only Uniqueness Enforcement**:
+    - Scanned contacts often share common names (e.g. "Rahul", "John"). The system explicitly permits duplicate names with different numbers.
+    - Only duplicate phone numbers are skipped.
+    - **Dual-Layer Duplicate Detection**:
+      1. *Batch-Level Normalization*: Normalizes phone strings to 10-digit numeric keys (`normalizePhoneKey`). Identifies and skips duplicate numbers occurring multiple times in the same document scan.
+      2. *Native Phonebook Check (`checkPhoneExists`)*: Queries Android via MethodChannel. Android executes a three-stage check:
+         - Stage 1: `ContactsContract.PhoneLookup.CONTENT_FILTER_URI` (handles standard system formatting).
+         - Stage 2: Direct query on `CommonDataKinds.Phone.CONTENT_URI` by exact number.
+         - Stage 3: Suffix match on the last 10 digits to resolve country code variations (`+91` vs local prefix).
   - In `MainActivity.kt`:
     1. **Google Account Discovery**: Queries `AccountManager.get(context).getAccountsByType("com.google")` to identify the user's primary synced Google account. This prevents Android's `"cannot add local contacts"` exception on modern Android versions (Android 11-16).
     2. **ContentProvider Batch Execution**: Constructs an `ArrayList<ContentProviderOperation>`:
@@ -231,6 +239,7 @@ graph TD
        - Operation 2: Inserts `CommonDataKinds.StructuredName` with `DISPLAY_NAME`.
        - Operation 3: Inserts `CommonDataKinds.Phone` with `NUMBER` and `TYPE_MOBILE`.
     3. Executes all operations atomically using `contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)`.
+  - For every skipped contact, emits a `SkippedContactInfo` model containing `name`, `phone`, and `reason`.
 
 #### 2. Persistent Local Registry (`lib/temporary_contact_service.dart`)
 - **Description**: Local disk registry ensuring scheduled expirations survive app restarts and device reboots.
@@ -261,11 +270,15 @@ graph TD
     3. Executes `contentResolver.delete(deleteUri, "${ContactsContract.RawContacts._ID} = ?", arrayOf(rawContactId))`.
     4. Removes the contact from `temporary_contacts_registry.json` and notifies UI listeners.
 
-#### 4. Save Success Screen (`lib/save_success_screen.dart`)
-- **Description**: Confirmation screen displaying total contacts saved, duplicates skipped, and temporary schedules created.
+#### 4. Save Success Screen & Skipped Contact Inspector (`lib/save_success_screen.dart`)
+- **Description**: Confirmation screen displaying total contacts saved, breakdown statistics, and an interactive viewer to inspect skipped duplicate contacts.
 - **How It Works Under the Hood**:
-  - Displays summary statistics in a clean slate/navy card layout.
-  - Provides a direct `"Open Contacts App"` button that fires an Android Intent (`ACTION_VIEW` on `ContactsContract.Contacts.CONTENT_URI`) to jump immediately into the phone's native address book.
+  - Fully styled to the `#0E1118` dark navy theme with high-contrast text and green confetti animation.
+  - **Summary Breakdown**: Displays Total Scanned, Successfully Saved, Skipped (Duplicate Numbers), and Failed to Save.
+  - **Option to See Skipped Contacts**:
+    - *Inline Expandable Card*: Users can tap "See Names" / "Hide" on the skipped card to view contacts directly in-line with initials, name, duplicate phone number, and reason tag.
+    - *Modal Bottom Sheet*: Tapping "View Names" in the summary table slides up a dedicated bottom sheet with scrollable list and duplicate reason tags.
+  - Provides direct `"Scan Another Page"` and `"Open Contacts App"` navigation intents.
 
 ---
 
@@ -334,16 +347,19 @@ graph TD
 | [`lib/contact_review_screen.dart`](file:///j:/napp/lib/contact_review_screen.dart) | Contact Review & Verification | Editable contact cards, 10-digit warnings, batch suffix tool, temporary scheduling, and AppBar logo. |
 | [`lib/temporary_contacts_screen.dart`](file:///j:/napp/lib/temporary_contacts_screen.dart) | Temporary Contacts Details | Real-time second-by-second countdown screen with manual deletion controls. |
 | [`lib/temporary_contact_service.dart`](file:///j:/napp/lib/temporary_contact_service.dart) | Background Expiry Engine | JSON disk registry persistence and 1-second periodic background timer. |
-| [`lib/contacts_writer_service.dart`](file:///j:/napp/lib/contacts_writer_service.dart) | MethodChannel Interface | Flutter side of Android MethodChannel for contact query, insert, and delete. |
-| [`android/app/src/main/kotlin/.../MainActivity.kt`](file:///j:/napp/android/app/src/main/kotlin/com/example/contact_scanner/MainActivity.kt) | Native Android Kotlin Plugin | `AccountManager` Google account discovery, ContentProvider batch ops, sync-adapter delete. |
-| [`lib/save_success_screen.dart`](file:///j:/napp/lib/save_success_screen.dart) | Completion Screen | Summary of saved contacts and intent launcher to native Android Contacts. |
+| [`lib/contacts_writer_service.dart`](file:///j:/napp/lib/contacts_writer_service.dart) | MethodChannel & Deduplication | Phone-only duplicate filtering, batch key normalization, Google account contact saving. |
+| [`android/app/src/main/kotlin/.../MainActivity.kt`](file:///j:/napp/android/app/src/main/kotlin/com/example/contact_scanner/MainActivity.kt) | Native Android Kotlin Plugin | `AccountManager` Google discovery, ContentProvider batch ops, `checkPhoneExists` PhoneLookup. |
+| [`lib/save_success_screen.dart`](file:///j:/napp/lib/save_success_screen.dart) | Completion & Skipped Inspector | Dark navy layout, confetti celebration, inline expandable skipped list, and modal name viewer. |
 | [`assets/logo.png`](file:///j:/napp/assets/logo.png) | Master App Logo & Branding | 1024x1024 high-res origami contact silhouette with neon cyan scanner brackets on dark slate. |
 | `android/app/src/main/res/mipmap-*/ic_launcher.png` | Android App Launcher Icons | Multi-density Android home screen icons downsampled with Lanczos interpolation. |
+| [`test/duplicate_number_test.dart`](file:///j:/napp/test/duplicate_number_test.dart) | Unit Tests: Deduplication | Validates 10-digit phone key normalization and `SkippedContactInfo` modeling. |
 | [`test/temporary_contact_test.dart`](file:///j:/napp/test/temporary_contact_test.dart) | Automated Unit Tests | Unit tests validating expiration calculations, batch scheduling, and JSON parsing. |
 
 ---
 
 ## 4. Key Capabilities & Technical Highlights
+- **Phone-Only Duplicate Prevention**: Only duplicate telephone numbers are skipped during save operations; contacts sharing common names with different numbers are preserved and written to native phone contacts.
+- **Interactive Skipped Contact Inspector**: When duplicate numbers are detected, users can inspect the skipped contacts inline or in a modal bottom sheet showing names, phone numbers, and duplicate source reasons.
 - **Origami & Scanner Brand Identity**: Distinctive paper-craft silhouette with neon cyan viewfinder corner brackets symbolizing the paper-to-digital contact conversion pipeline.
 - **User-Configurable Gemini API Key**: In-app Settings screen allowing users to input their personal Google AI Studio keys, persisted securely via `SharedPreferences`.
 - **Strikethrough Prevention**: Automatically ignores crossed-out names/numbers on physical paper and extracts nearby rewritten corrections without creating duplicate entries.

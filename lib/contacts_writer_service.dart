@@ -1,10 +1,23 @@
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+/// Detailed information about a contact skipped during save.
+class SkippedContactInfo {
+  final String name;
+  final String phone;
+  final String reason;
+
+  const SkippedContactInfo({
+    required this.name,
+    required this.phone,
+    this.reason = 'Duplicate phone number',
+  });
+}
+
 /// Result of a batch contact-save operation.
 ///
 /// Tracks how many contacts were successfully saved, how many failed,
-/// how many were skipped because they already exist, and their names.
+/// how many were skipped because of duplicate phone numbers, and their details.
 class ContactSaveResult {
   /// Number of contacts successfully written to the phonebook.
   final int savedCount;
@@ -15,11 +28,14 @@ class ContactSaveResult {
   /// Display names of the contacts that could not be saved.
   final List<String> failedNames;
 
-  /// Number of contacts skipped because they already exist.
+  /// Number of contacts skipped because their phone number is duplicate.
   final int skippedCount;
 
   /// Display names of the contacts that were skipped.
   final List<String> skippedNames;
+
+  /// Detailed list of contacts skipped due to duplicate phone numbers.
+  final List<SkippedContactInfo> skippedContacts;
 
   const ContactSaveResult({
     required this.savedCount,
@@ -27,6 +43,7 @@ class ContactSaveResult {
     required this.failedNames,
     required this.skippedCount,
     required this.skippedNames,
+    this.skippedContacts = const [],
   });
 }
 
@@ -43,10 +60,20 @@ class ContactsWriterService {
   static const _channel =
       MethodChannel('com.example.contact_scanner/contacts');
 
+  /// Normalizes phone number to key for checking duplicates across formats.
+  static String normalizePhoneKey(String rawPhone) {
+    final digits = rawPhone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length >= 10) {
+      return digits.substring(digits.length - 10);
+    }
+    return digits.isNotEmpty ? digits : rawPhone.trim();
+  }
+
   /// Saves all [contacts] to the device phonebook.
   ///
   /// Each map must contain at least "name" and "phone" keys.
-  /// Returns a [ContactSaveResult] with counts and any failed/skipped names.
+  /// ONLY duplicate phone numbers are skipped; duplicate names are permitted.
+  /// Returns a [ContactSaveResult] with counts and failed/skipped details.
   ///
   /// Throws an [Exception] if contacts permission is denied.
   static Future<ContactSaveResult> saveAllContacts(
@@ -63,30 +90,61 @@ class ContactsWriterService {
     int skippedCount = 0;
     final List<String> failedNames = [];
     final List<String> skippedNames = [];
+    final List<SkippedContactInfo> skippedContacts = [];
+    final Set<String> seenPhoneNumbersInBatch = <String>{};
 
     // ── Save each contact one by one ─────────────────────────────────
     for (final contactMap in contacts) {
       final fullName = (contactMap['name'] ?? '').trim();
       final phone = (contactMap['phone'] ?? '').trim();
+      final displayName = fullName.isNotEmpty ? fullName : (phone.isNotEmpty ? phone : '(unnamed)');
 
       try {
-        // Check if the contact name already exists to prevent duplication.
-        bool exists = false;
-        try {
-          exists = await _channel.invokeMethod<bool>(
-                'checkContactExists',
-                {'name': fullName},
-              ) ??
-              false;
-        } catch (_) {
-          // Fallback to false on iOS or error.
-          exists = false;
-        }
+        // ONLY check phone number for duplicates (allow duplicate names)
+        if (phone.isNotEmpty) {
+          final phoneKey = normalizePhoneKey(phone);
 
-        if (exists) {
-          skippedCount++;
-          skippedNames.add(fullName.isNotEmpty ? fullName : '(unnamed)');
-          continue;
+          // 1. Check duplicate within current scanned batch
+          if (seenPhoneNumbersInBatch.contains(phoneKey)) {
+            skippedCount++;
+            skippedNames.add(displayName);
+            skippedContacts.add(
+              SkippedContactInfo(
+                name: displayName,
+                phone: phone,
+                reason: 'Duplicate number in scanned list',
+              ),
+            );
+            continue;
+          }
+
+          // 2. Check if phone number already exists in device contacts
+          bool exists = false;
+          try {
+            exists = await _channel.invokeMethod<bool>(
+                  'checkPhoneExists',
+                  {'phone': phone},
+                ) ??
+                false;
+          } catch (_) {
+            exists = false;
+          }
+
+          if (exists) {
+            skippedCount++;
+            skippedNames.add(displayName);
+            skippedContacts.add(
+              SkippedContactInfo(
+                name: displayName,
+                phone: phone,
+                reason: 'Number already exists in phone contacts',
+              ),
+            );
+            continue;
+          }
+
+          // Mark as seen in this batch
+          seenPhoneNumbersInBatch.add(phoneKey);
         }
 
         // Split the full name into first and last parts.
@@ -111,7 +169,7 @@ class ContactsWriterService {
         savedCount++;
       } catch (e) {
         failedCount++;
-        failedNames.add(fullName.isNotEmpty ? fullName : '(unnamed)');
+        failedNames.add(displayName);
       }
     }
 
@@ -121,6 +179,7 @@ class ContactsWriterService {
       failedNames: failedNames,
       skippedCount: skippedCount,
       skippedNames: skippedNames,
+      skippedContacts: skippedContacts,
     );
   }
 
@@ -137,6 +196,19 @@ class ContactsWriterService {
           false;
       return result;
     } catch (e) {
+      return false;
+    }
+  }
+
+  /// Checks if a contact with [phone] exists in native contacts.
+  static Future<bool> checkPhoneExists(String phone) async {
+    try {
+      return await _channel.invokeMethod<bool>(
+            'checkPhoneExists',
+            {'phone': phone},
+          ) ??
+          false;
+    } catch (_) {
       return false;
     }
   }

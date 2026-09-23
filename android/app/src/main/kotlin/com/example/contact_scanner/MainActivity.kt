@@ -3,6 +3,7 @@ package com.example.contact_scanner
 import android.accounts.AccountManager
 import android.content.ContentProviderOperation
 import android.content.Intent
+import android.net.Uri
 import android.provider.ContactsContract
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -39,10 +40,25 @@ class MainActivity : FlutterActivity() {
                             result.error("OPEN_FAILED", e.message, null)
                         }
                     }
+                    "checkPhoneExists" -> {
+                        val phone = call.argument<String>("phone") ?: ""
+                        try {
+                            val exists = checkPhoneExists(phone)
+                            result.success(exists)
+                        } catch (e: Exception) {
+                            result.error("CHECK_FAILED", e.message, null)
+                        }
+                    }
                     "checkContactExists" -> {
+                        val phone = call.argument<String>("phone")
                         val name = call.argument<String>("name") ?: ""
                         try {
-                            val exists = checkContactExists(name)
+                            // If phone is provided, prioritize phone uniqueness check
+                            val exists = if (!phone.isNullOrBlank()) {
+                                checkPhoneExists(phone)
+                            } else {
+                                checkContactExists(name)
+                            }
                             result.success(exists)
                         } catch (e: Exception) {
                             result.error("CHECK_FAILED", e.message, null)
@@ -61,6 +77,66 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /**
+     * Checks if a contact with the given phone number already exists in device contacts.
+     * Uses PhoneLookup URI, exact match on Phone table, and last 10 digits fallback.
+     */
+    private fun checkPhoneExists(phone: String): Boolean {
+        if (phone.isBlank()) return false
+        val cleanPhone = phone.trim()
+
+        // 1. Android's PhoneLookup (matches formatting & variations)
+        try {
+            val lookupUri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(cleanPhone)
+            )
+            val projection = arrayOf(ContactsContract.PhoneLookup._ID)
+            contentResolver.query(lookupUri, projection, null, null, null)?.use { cursor ->
+                if (cursor.count > 0) {
+                    return true
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Direct query on Phone table
+        try {
+            val phoneUri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+            val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.RAW_CONTACT_ID)
+            val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} = ?"
+            contentResolver.query(phoneUri, projection, selection, arrayOf(cleanPhone), null)?.use { cursor ->
+                if (cursor.count > 0) {
+                    return true
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 3. Fallback: match by last 10 digits to catch international prefix differences
+        val digits = cleanPhone.filter { it.isDigit() }
+        if (digits.length >= 10) {
+            val last10 = digits.takeLast(10)
+            try {
+                val phoneUri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+                val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val selection = "${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
+                contentResolver.query(phoneUri, projection, selection, arrayOf("%$last10%"), null)?.use { cursor ->
+                    val numIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                    while (cursor.moveToNext()) {
+                        if (numIndex != -1) {
+                            val existing = cursor.getString(numIndex)
+                            val existingDigits = existing.filter { it.isDigit() }
+                            if (existingDigits.endsWith(last10)) {
+                                return true
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        return false
     }
 
     /**
