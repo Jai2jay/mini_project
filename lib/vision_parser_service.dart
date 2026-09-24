@@ -105,21 +105,20 @@ class VisionParserService {
                       'Each horizontal row has a person\'s Name on the left and their Phone Number on the right, '
                       'often separated by a hyphen "-", dash, colon, or whitespace.\n\n'
                       'CRITICAL RULES & STRIKETHROUGH / CORRECTION HANDLING:\n'
-                      '1. STRIKETHROUGH & CROSSED-OUT TEXT DETECTION:\n'
-                      '   - Carefully examine each name and number for horizontal strikethrough lines, cross-outs, scratches, or scribble lines (e.g., ~~Maze~~).\n'
-                      '   - NEVER transcribe struck-out, crossed-out, or scratched-out text into the output.\n'
-                      '   - When a name is struck through and a corrected name is re-written near it (directly underneath, above, or beside it, e.g. "Maziken" written under "Maze"), extract ONLY the clean, non-struck-out correction ("Maziken").\n'
-                      '   - Pair that corrected non-struck-out name with the phone number on that row (e.g., {"name": "Maziken", "phone": "6665137"}).\n'
-                      '   - Do NOT concatenate the struck-out word with the replacement (NEVER output "Maze Maziken" or "Maze").\n'
-                      '   - Do NOT create duplicate contacts or orphan entries for the correction.\n'
-                      '   - If a phone number is struck out and a new one is written next to or below it, use ONLY the new non-struck-out phone number.\n'
-                      '2. FORMAT REQUIREMENTS:\n'
+                      '1. STRIKETHROUGH, CROSSED-OUT & SCRATCHED-OUT TEXT DETECTION (VERY STRICT):\n'
+                      '   - Pay extreme attention to pen strokes, horizontal lines, cross-outs, scratches, or scribble lines cutting through words, letters, or numbers.\n'
+                      '   - FULL-WORD STRIKETHROUGH: If a name or number is struck through or scribbled over (e.g. a scribbled "Samu" followed by a clean "Samu"), IGNORE the scribbled/struck-out version completely. Extract only the clean, non-struck-out text ("Samu").\n'
+                      '   - INTRA-WORD & INLINE LETTER STRIKETHROUGH: People often make a spelling mistake and strike through individual letters or syllables inside a word (for example, writing "Gamma", then writing "raka" with a line struck through it, followed by "ra"). You MUST COMPLETELY DROP the struck-out letters ("raka") and merge the clean parts into the intended word ("Gammara"). NEVER include struck-out syllables like "raka" in the output (do NOT output "Gammarakara" or "Gammaraka").\n'
+                      '   - REWRITTEN CORRECTIONS: When a struck-out name has a replacement written near it (above, below, or beside), extract ONLY the final clean correction.\n'
+                      '   - STRUCK-OUT PHONE NUMBERS: If digits are struck through and new digits are written next to or below them, include ONLY the valid, non-struck-out digits.\n'
+                      '2. ACCURACY & CLEANLINESS:\n'
+                      '   - Output clean, final names and digits only.\n'
+                      '   - Do NOT include struck-out characters or markdown symbols in the final name.\n'
+                      '   - Never invent or hallucinate missing digits.\n'
+                      '3. FORMAT REQUIREMENTS:\n'
                       '   - Every contact object MUST have BOTH "name" and "phone" fields: [{"name": "...", "phone": "..."}].\n'
                       '   - Clean phone numbers to digits only.\n'
                       '   - Never output orphan objects with only a name or only a phone.\n'
-                      '3. ACCURACY & CLEANLINESS:\n'
-                      '   - Never include strikethrough characters (~, -, /) inside the final name.\n'
-                      '   - Do not hallucinate or invent missing digits.\n'
                       '4. OUTPUT FORMAT:\n'
                       '   - Return ONLY a valid JSON array of objects with no markdown fences, no code blocks, no backticks, and no explanation text.',
                 },
@@ -127,7 +126,7 @@ class VisionParserService {
             },
           ],
           'generationConfig': {
-            'temperature': 0.1,
+            'temperature': 0.0,
             'maxOutputTokens': 1024,
           },
         }),

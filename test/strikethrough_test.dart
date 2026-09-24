@@ -56,6 +56,11 @@ void main() {
       expect(cleanOcrName('[struck through] Maziken'), equals('Maziken'));
     });
 
+    test('Handles intra-word strikethrough markers', () {
+      expect(cleanOcrName('Gamma~~raka~~ra'), equals('Gammara'));
+      expect(cleanOcrName('Sam~~uel~~my'), equals('Sammy'));
+    });
+
     test('Preserves clean single names', () {
       expect(cleanOcrName('test V'), equals('test V'));
       expect(cleanOcrName('Arun Kumar'), equals('Arun Kumar'));

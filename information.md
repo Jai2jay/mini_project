@@ -119,12 +119,12 @@ graph TD
 - **Description**: Intelligently identifies crossed-out or scratched-out names on physical paper, ignores the struck-out text, and correctly extracts the re-written correction without duplicating entries.
 - **How It Works Under the Hood (What Was Done to Achieve Strikethrough Prevention)**:
   1. **Multimodal Spatial Prompt Guidance**:
-     - The AI model prompt specifically instructs:
-       - *"Carefully examine each name and number for horizontal strikethrough lines, cross-outs, scratches, or scribble lines (e.g. ~~Maze~~)."*
-       - *"NEVER transcribe struck-out, crossed-out, or scratched-out text into the output."*
-       - *"When a name is struck through and a corrected name is re-written near it (directly underneath, above, or beside it, e.g. 'Maziken' written under 'Maze'), extract ONLY the clean, non-struck-out correction ('Maziken')."*
-       - *"Pair that corrected non-struck-out name with the phone number on that row (e.g., {"name": "Maziken", "phone": "6665137"})."*
-       - *"Do NOT concatenate the struck-out word with the replacement (NEVER output 'Maze Maziken')."*
+      - Configured with deterministic inference (`temperature: 0.0`) to avoid hallucinations and maintain consistency.
+      - The AI model prompt specifically instructs:
+        - *"FULL-WORD STRIKETHROUGH: If a name or number is struck through or scribbled over (e.g. a scribbled 'Samu' followed by clean 'Samu'), IGNORE the scribbled/struck-out version completely. Extract only the clean, non-struck-out text ('Samu')."*
+        - *"INTRA-WORD & INLINE LETTER STRIKETHROUGH: When individual letters or syllables inside a word are struck through (e.g. 'Gamma' + struck-out 'raka' + 'ra'), COMPLETELY DROP the struck-out letters ('raka') and merge the clean parts into the intended word ('Gammara'). NEVER output 'Gammarakara' or 'Gammaraka'."*
+        - *"REWRITTEN CORRECTIONS: When a struck-out name has a replacement written near it (above, below, or beside), extract ONLY the clean correction."*
+        - *"STRUCK-OUT PHONE NUMBERS: If digits are struck through and new digits are written next to or below them, include ONLY the valid, non-struck-out digits."*
   2. **Deterministic Code-Level Regex Sanitization (`_cleanName`)**:
      - Removes markdown strikethrough syntax: `RegExp(r'~~.*?~~')`.
      - Removes parenthetical and bracketed annotations: `RegExp(r'\(.*?(crossed|struck|strike|scratched).*?\)')` and `RegExp(r'\[.*?(crossed|struck|strike|scratched).*?\]')`.
